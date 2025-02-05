@@ -19,6 +19,10 @@ func (p1 *Point) addPoint(p2 *Point) Point {
 	x2 := p2.X
 	y2 := p2.Y
 
+	if x1.Cmp(&x2) == 0 && y1.Cmp(&y2) == 0 {
+        return p1.doublePoint()
+    }
+
 	var topTmp, lowTmp big.Int
 
 	topTmp.Sub(&y2, &y1)
@@ -42,10 +46,10 @@ func (p1 *Point) addPoint(p2 *Point) Point {
 
 	res.X.Mod(&res.X, &mod)
 
-	// y2 + m * (res.X - x2)
-	res.Y.Sub(&res.X, &x2)
+	// y2 + tmp * (res.X - x2)
+	res.Y.Sub(&x1, &res.X)
 	res.Y.Mul(&tmp, &res.Y)
-	res.Y.Add(&y2, &res.Y)
+	res.Y.Sub(&res.Y, &y1)
 
 	res.Y.Mod(&res.Y, &mod)
 
@@ -53,28 +57,28 @@ func (p1 *Point) addPoint(p2 *Point) Point {
 }
 
 func (p *Point) doublePoint() Point {
-	// ((3x^2 + a)/(2y)) and ^2
-	var gamma big.Int
-	gamma.Mul(&p.X, &p.X)
-	gamma.Mul(&gamma, big.NewInt(3))
+	// ((3x^2)/(2y)) and ^2
+	var lambda big.Int
+	lambda.Mul(&p.X, &p.X)
+	lambda.Mul(&lambda, big.NewInt(3))
 	var y2 big.Int
 	y2.Mul(&p.Y, big.NewInt(2))
 	y2.ModInverse(&y2, &mod)
-	gamma.Mul(&gamma, &y2)
-	var gammaPow big.Int
-	gammaPow.Mul(&gamma, &gamma)
+	lambda.Mul(&lambda, &y2)
+
+	var lambdaPow big.Int
+	lambdaPow.Mul(&lambda, &lambda)
 
 	// Coords
 	var res Point
 	var x2 big.Int
 	x2.Mul(&p.X, big.NewInt(2))
-	res.X.Sub(&gammaPow, &x2)
+	res.X.Sub(&lambdaPow, &x2)
 
 	res.X.Mod(&res.X, &mod)
 
-	var div big.Int
-	div.Sub(&p.X, &res.X)
-	res.Y.Mul(&gamma, &div)
+	res.Y.Sub(&p.X, &res.X)
+	res.Y.Mul(&lambda, &res.Y)
 	res.Y.Sub(&res.Y, &p.Y)
 
 	res.Y.Mod(&res.Y, &mod)
@@ -92,7 +96,8 @@ func getPubKey(privKey big.Int) Point {
 	res.Y.SetString("483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8", 16)
 
 	// num >> 1 same with num / 2 (we can lost 1, if num is odd!)
-	for ; privKey.Cmp(big.NewInt(0)) != 0; privKey.Rsh(&privKey, 1) {
+	
+	for ; privKey.Cmp(big.NewInt(1)) != 0; privKey.Rsh(&privKey, 1){
 
 		if privKey.Bit(0) == 1 {
 			// Never used before
@@ -107,6 +112,8 @@ func getPubKey(privKey big.Int) Point {
 		res = res.doublePoint()
 	}
 
+	pubKey = pubKey.addPoint(&res)
+
 	return pubKey
 }
 
@@ -118,10 +125,9 @@ func main() {
 
 	var privKey big.Int
 	// Example key
-	privKey.SetString("733115b84f8151f8e1f15e2c80fa938ed9c4da3b052ce79ae702db33e022fd91", 16)
+	privKey.SetString("fbdfa5e4a198c9b24003200452b410a9000c0ea236e2ca9657a15ed376dc416d", 16)
 
 	pubKey := getPubKey(privKey)
 
-	fmt.Println("X: " + pubKey.X.Text(16))
-	fmt.Println("Y: " + pubKey.Y.Text(16))
+	fmt.Println("Public key: 04" + pubKey.X.Text(16) + pubKey.Y.Text(16))
 }
